@@ -1,0 +1,112 @@
+# Nuxeo LTS 2025 with the Web UI, its default repository (documents and folders) in Neo4j, the rest (users, groups,
+# directories, audit) in PostgreSQL, search and fulltext in OpenSearch (or Elasticsearch), Nuxeo Stream (with the audit
+# stream for change sync) on Kafka:
+#
+#   docker compose -f docker/compose.neo4j.yaml up --build      # Nuxeo on :8083, Neo4j Browser on :7476
+#
+# Web UI: http://localhost:8083/nuxeo/ui (Administrator / Administrator). The first build compiles Nuxeo and the Web UI
+# from source: long. The versions, passwords and ports are in docker/.env. The ArcadeDB stack (compose.arcadedb.yaml)
+# can run at the same time: open one with localhost and the other with 127.0.0.1 (the two Nuxeo would share their
+# session cookie on localhost).
+#
+# The services: Neo4j, and Nuxeo with its own PostgreSQL ("db"), search engine ("search": OpenSearch with OpenSearch
+# Dashboards, or Elasticsearch with Kibana: NUXEO_NEO4J_SEARCH_ENGINE in docker/.env) and Kafka (with Kafka UI). The
+# Nuxeo services are defined in nuxeo-base.yaml; this file adds the Neo4j settings, the host ports and the volumes. Stop
+# with "stop" (or "down"): the volumes are kept. "down -v" deletes them: all the content.
+#
+# Nuxeo's configuration: config/conf.d, mounted into the container and appended to nuxeo.conf when the container is
+# created. After editing it: docker compose -f docker/compose.neo4j.yaml up -d --force-recreate nuxeo
+# Custom content models: config/models, built into the image.
+
+name: nuxeo-graph-neo4j
+
+services:
+
+  neo4j:
+    image: neo4j:${NEO4J_VERSION:-2026.09.0}
+    environment:
+      # the image sets the password of its admin user, which must be neo4j
+      NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-password}
+      # Neo4j Browser connects to the advertised Bolt address: the host port (not another Neo4j on 7687)
+      NEO4J_server_bolt_advertised__address: localhost:${NEO4J_BOLT_PORT:-7691}
+    ports:
+      - "${NEO4J_HTTP_PORT:-7476}:7474"
+      - "${NEO4J_BOLT_PORT:-7691}:7687"
+    volumes:
+      - neo4j-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$${NEO4J_AUTH#neo4j/}\" 'RETURN 1' || exit 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+
+  nuxeo-db:
+    extends: { file: nuxeo-base.yaml, service: nuxeo-db }
+    volumes:
+      - nuxeo-db-data:/var/lib/postgresql/data
+
+  # the search engine, opensearch or elasticsearch (NUXEO_NEO4J_SEARCH_ENGINE in docker/.env)
+  nuxeo-search:
+    extends: { file: nuxeo-base.yaml, service: "${NUXEO_NEO4J_SEARCH_ENGINE:-opensearch}" }
+    ports:
+      - "${NUXEO_NEO4J_SEARCH_PORT:-9204}:9200"
+
+  # OpenSearch Dashboards, or Kibana
+  nuxeo-search-dashboards:
+    extends: { file: nuxeo-base.yaml, service: "${NUXEO_NEO4J_SEARCH_ENGINE:-opensearch}-dashboards" }
+    depends_on:
+      - nuxeo-search
+    ports:
+      - "${NUXEO_NEO4J_SEARCH_DASHBOARDS_PORT:-5605}:5601"
+
+  nuxeo-kafka:
+    extends: { file: nuxeo-base.yaml, service: nuxeo-kafka }
+    environment:
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://nuxeo-kafka:29092,PLAINTEXT_HOST://localhost:${NUXEO_NEO4J_KAFKA_PORT:-9092}
+    ports:
+      - "${NUXEO_NEO4J_KAFKA_PORT:-9092}:9092"
+    volumes:
+      - nuxeo-kafka-data:/var/lib/kafka/data
+
+  nuxeo-kafka-ui:
+    extends: { file: nuxeo-base.yaml, service: nuxeo-kafka-ui }
+    depends_on:
+      - nuxeo-kafka
+    environment:
+      KAFKA_CLUSTERS_0_NAME: nuxeo-neo4j
+    ports:
+      - "${NUXEO_NEO4J_KAFKA_UI_PORT:-8092}:8080"
+
+  nuxeo:
+    extends: { file: nuxeo-base.yaml, service: nuxeo }
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      nuxeo-db:
+        condition: service_healthy
+      nuxeo-search:
+        condition: service_healthy
+      nuxeo-kafka:
+        condition: service_healthy
+    environment:
+      NUXEO_TEMPLATES: graph-neo4j,sql-audit,opensearch1-search-client
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-password}
+    ports:
+      - "${NUXEO_NEO4J_PORT:-8083}:8080"
+    volumes:
+      - nuxeo-data:/var/lib/nuxeo
+      - nuxeo-logs:/var/log/nuxeo
+
+# Seven volumes, six in use (Docker names them nuxeo-graph-neo4j_<name>). Keep or delete them together: a document's metadata is in
+# Neo4j, its file content in Nuxeo's data volume, its history (audit) in Nuxeo's PostgreSQL, its search index in
+# the search engine, and pending work in Kafka.
+volumes:
+  neo4j-data:         # Neo4j's graph data: the documents and folders (metadata, hierarchy, versions, ACLs)
+  nuxeo-db-data:      # Nuxeo's PostgreSQL data (not Neo4j's): users and groups, directories, audit, key/value
+  nuxeo-opensearch-data:     # Nuxeo's search index in OpenSearch (rebuilt from the repository if lost)
+  nuxeo-elasticsearch-data:  # Nuxeo's search index in Elasticsearch, when it is the stack's search engine
+  nuxeo-kafka-data:   # Nuxeo's Kafka: Nuxeo Stream (bulk commands, works, the audit topic nuxeo-audit-audit)
+  nuxeo-data:         # Nuxeo's data directory: the files' content (binaries/), transient files
+  nuxeo-logs:         # Nuxeo's logs: server.log, nuxeo-error.log, console.log, gc.log, stderr.log

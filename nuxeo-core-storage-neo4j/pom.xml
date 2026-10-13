@@ -1,0 +1,131 @@
+<?xml version="1.0"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.integratedsemantics.nuxeo.graph</groupId>
+    <artifactId>nuxeo-graph-storage-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>nuxeo-core-storage-neo4j</artifactId>
+  <name>Nuxeo Core Storage Neo4j</name>
+
+  <dependencies>
+    <!-- Nuxeo dependencies -->
+    <dependency>
+      <groupId>org.nuxeo.common</groupId>
+      <artifactId>nuxeo-common</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.nuxeo.runtime</groupId>
+      <artifactId>nuxeo-runtime</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.nuxeo.ecm.core</groupId>
+      <artifactId>nuxeo-core-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.nuxeo.ecm.core</groupId>
+      <artifactId>nuxeo-core-query</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.nuxeo.ecm.core</groupId>
+      <artifactId>nuxeo-core-schema</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.nuxeo.ecm.core</groupId>
+      <artifactId>nuxeo-core-storage</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.nuxeo.ecm.core</groupId>
+      <artifactId>nuxeo-core-storage-dbs</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.integratedsemantics.nuxeo.graph</groupId>
+      <artifactId>nuxeo-core-storage-graph</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-lang3</artifactId>
+    </dependency>
+
+    <!-- Neo4j Java driver and Cypher-DSL (Apache 2.0) -->
+    <dependency>
+      <groupId>org.neo4j.driver</groupId>
+      <artifactId>neo4j-java-driver</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.neo4j</groupId>
+      <artifactId>neo4j-cypher-dsl</artifactId>
+    </dependency>
+
+    <!-- Test dependencies -->
+    <dependency>
+      <groupId>org.nuxeo.ecm.core</groupId>
+      <artifactId>nuxeo-core-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.nuxeo.ecm.core</groupId>
+      <artifactId>nuxeo-core-storage-mem</artifactId>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <!-- tests start the official Neo4j Docker image (unless an external server is configured) -->
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers-neo4j</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <!-- test-jar with Neo4jRepositoryFeature, reused by the core tests module -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <executions>
+          <execution>
+            <configuration>
+              <archive>
+                <manifestFile>src/test/resources/META-INF/MANIFEST.MF</manifestFile>
+              </archive>
+            </configuration>
+            <goals>
+              <goal>test-jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <dependencies>
+          <!-- force the JUnit 4 provider used by FeaturesRunner -->
+          <dependency>
+            <groupId>org.apache.maven.surefire</groupId>
+            <artifactId>surefire-junit4</artifactId>
+            <version>3.5.5</version>
+          </dependency>
+        </dependencies>
+        <configuration>
+          <systemPropertyVariables>
+            <!-- CoreFeature only knows vcs/mem/mongodb: run it in "mem" mode, Neo4jRepositoryFeature then
+                 replaces the "test" repository factory with the Neo4j one -->
+            <nuxeo.test.core>mem</nuxeo.test.core>
+            <!-- image tag of the Neo4j container -->
+            <nuxeo.test.neo4j.version>${neo4j.version}</nuxeo.test.neo4j.version>
+            <!-- By default a Neo4j Docker container is started with Testcontainers (Docker needed), image
+                 neo4j:${neo4j.version} (as the Docker Compose); another image: -Dnuxeo.test.neo4j.image=<image>. To
+                 test against an external server instead, uncomment these lines (or pass -Dnuxeo.test.neo4j.uri=...): -->
+            <!-- <nuxeo.test.neo4j.uri>bolt://localhost:7687</nuxeo.test.neo4j.uri> -->
+            <!-- <nuxeo.test.neo4j.username>neo4j</nuxeo.test.neo4j.username> -->
+            <!-- <nuxeo.test.neo4j.password>password</nuxeo.test.neo4j.password> -->
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

@@ -1,0 +1,163 @@
+<?xml version="1.0"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.integratedsemantics.nuxeo.graph</groupId>
+    <artifactId>nuxeo-graph-storage-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>nuxeo-core-storage-arcadedb</artifactId>
+  <name>Nuxeo Core Storage ArcadeDB</name>
+
+  <dependencies>
+    <!-- Nuxeo dependencies -->
+    <dependency>
+      <groupId>org.nuxeo.common</groupId>
+      <artifactId>nuxeo-common</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.nuxeo.runtime</groupId>
+      <artifactId>nuxeo-runtime</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.nuxeo.ecm.core</groupId>
+      <artifactId>nuxeo-core-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.nuxeo.ecm.core</groupId>
+      <artifactId>nuxeo-core-query</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.nuxeo.ecm.core</groupId>
+      <artifactId>nuxeo-core-schema</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.nuxeo.ecm.core</groupId>
+      <artifactId>nuxeo-core-storage</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.nuxeo.ecm.core</groupId>
+      <artifactId>nuxeo-core-storage-dbs</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.integratedsemantics.nuxeo.graph</groupId>
+      <artifactId>nuxeo-core-storage-graph</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-lang3</artifactId>
+    </dependency>
+
+    <!-- ArcadeDB Java remote API (Apache 2.0) -->
+    <dependency>
+      <groupId>com.arcadedb</groupId>
+      <artifactId>arcadedb-network</artifactId>
+    </dependency>
+
+    <!-- Test dependencies -->
+    <dependency>
+      <groupId>org.nuxeo.ecm.core</groupId>
+      <artifactId>nuxeo-core-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.nuxeo.ecm.core</groupId>
+      <artifactId>nuxeo-core-storage-mem</artifactId>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <!-- tests start the ArcadeDB Docker image (default mode) -->
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <!-- in-process ArcadeDB server, for -Dnuxeo.test.arcadedb.mode=inprocess (no Docker) -->
+      <groupId>com.arcadedb</groupId>
+      <artifactId>arcadedb-server</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <!-- needed by the in-process server (excluded from the remote client dependencies) -->
+      <groupId>org.locationtech.jts</groupId>
+      <artifactId>jts-core</artifactId>
+      <version>${arcadedb.jts.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <!-- needed by the in-process server (excluded from the remote client dependencies) -->
+      <groupId>org.antlr</groupId>
+      <artifactId>antlr4-runtime</artifactId>
+      <version>${arcadedb.antlr4.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <!-- needed by the in-process server (excluded from the remote client dependencies) -->
+      <groupId>org.graalvm.sdk</groupId>
+      <artifactId>graal-sdk</artifactId>
+      <version>${arcadedb.graalvm.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.graalvm.polyglot</groupId>
+      <artifactId>polyglot</artifactId>
+      <version>${arcadedb.graalvm.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <!-- test-jar with ArcadeDBRepositoryFeature, reused by the core tests module -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <executions>
+          <execution>
+            <configuration>
+              <archive>
+                <manifestFile>src/test/resources/META-INF/MANIFEST.MF</manifestFile>
+              </archive>
+            </configuration>
+            <goals>
+              <goal>test-jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <dependencies>
+          <dependency>
+            <groupId>org.apache.maven.surefire</groupId>
+            <artifactId>surefire-junit4</artifactId>
+            <version>3.5.5</version>
+          </dependency>
+        </dependencies>
+        <configuration>
+          <systemPropertyVariables>
+            <nuxeo.test.core>mem</nuxeo.test.core>
+            <!-- default image tag of the ArcadeDB container: the client version -->
+            <nuxeo.test.arcadedb.version>${arcadedb.version}</nuxeo.test.arcadedb.version>
+            <!-- By default an ArcadeDB Docker container is started with Testcontainers (Docker needed), image
+                 arcadedata/arcadedb:${arcadedb.version} (as the Docker stacks); another image:
+                 -Dnuxeo.test.arcadedb.image=<image>. Without Docker, an in-process
+                 server: -Dnuxeo.test.arcadedb.mode=inprocess. To test against an external server (local or remote,
+                 Docker or standalone), uncomment these lines or pass them with -D. The database must exist and be
+                 dedicated to the tests (its documents are deleted), and the server should have a transaction session
+                 timeout above the default 5s: -Darcadedb.server.httpSessionExpireTimeout=300 -->
+            <!-- <nuxeo.test.arcadedb.host>localhost</nuxeo.test.arcadedb.host> -->
+            <!-- <nuxeo.test.arcadedb.port>2480</nuxeo.test.arcadedb.port> -->
+            <!-- <nuxeo.test.arcadedb.database>nuxeo-test</nuxeo.test.arcadedb.database> -->
+            <!-- <nuxeo.test.arcadedb.username>root</nuxeo.test.arcadedb.username> -->
+            <!-- <nuxeo.test.arcadedb.password>playwithdata</nuxeo.test.arcadedb.password> -->
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

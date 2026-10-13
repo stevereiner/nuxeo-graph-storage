@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<component name="org.integratedsemantics.nuxeo.graph.neo4j.Neo4jRepositoryService" version="1.0.0">
+
+  <require>org.nuxeo.ecm.core.storage.dbs.DBSRepositoryService</require>
+
+  <documentation>
+    Manages Neo4j repositories. The Neo4j server is configured with the nuxeo.conf properties nuxeo.neo4j.uri,
+    nuxeo.neo4j.username, nuxeo.neo4j.password and nuxeo.neo4j.database.
+  </documentation>
+
+  <implementation class="org.integratedsemantics.nuxeo.graph.neo4j.Neo4jRepositoryService" />
+
+  <service>
+    <provide interface="org.integratedsemantics.nuxeo.graph.neo4j.Neo4jRepositoryService" />
+  </service>
+
+  <extension-point name="repository">
+    <documentation>
+      Extension point to register Neo4j repositories. Example:
+      <code>
+        <repository name="default" label="Neo4j Repository" isDefault="true">
+          <fulltext disabled="false" />
+        </repository>
+      </code>
+    </documentation>
+    <object class="org.integratedsemantics.nuxeo.graph.neo4j.Neo4jRepositoryDescriptor" />
+  </extension-point>
+
+</component>

@@ -1,0 +1,124 @@
+# Nuxeo's services, shared by the two stacks: compose.neo4j.yaml and compose.arcadedb.yaml extend them ("extends") and
+# add what differs per graph database: its settings, the host ports and the volumes. Not a stack of its own: run one of
+# the two compose files. Variables come from docker/.env.
+
+services:
+
+  # Nuxeo with the Web UI, built from source (docker/Dockerfile)
+  nuxeo:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        NUXEO_GIT_REF: ${NUXEO_GIT_REF}
+        NUXEO_WEBUI_GIT_REF: ${NUXEO_WEBUI_GIT_REF}
+        BUILD_THREADS: ${BUILD_THREADS:-6}
+        LIBREOFFICE_VERSION: ${LIBREOFFICE_VERSION:-7.5.9.2}
+    image: nuxeo-graph-storage:local
+    environment:
+      NUXEO_DB_HOST: nuxeo-db
+      NUXEO_DB_PASSWORD: ${POSTGRES_PASSWORD:-nuxeo}
+      OPENSEARCH_URL: http://nuxeo-search:9200
+      KAFKA_ENABLED: "true"
+      KAFKA_BOOTSTRAP_SERVERS: nuxeo-kafka:29092
+    volumes:
+      - ../config/conf.d:/etc/nuxeo/conf.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/nuxeo/runningstatus || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 40
+      start_period: 120s
+
+  # Nuxeo's PostgreSQL: users and groups, directories, audit, key/value store
+  nuxeo-db:
+    image: postgres:${POSTGRES_VERSION:-16-alpine}
+    environment:
+      POSTGRES_DB: nuxeo
+      POSTGRES_USER: nuxeo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nuxeo}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nuxeo -d nuxeo"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Nuxeo's search engine (search and fulltext), service nuxeo-search in the stacks, with its dashboard
+  # (nuxeo-search-dashboards). Two engines, chosen per stack in docker/.env (NUXEO_<STACK>_SEARCH_ENGINE): each stack's
+  # services extend <engine> and <engine>-dashboards. Single node, no security (development only). Each engine has its
+  # own data volume: after switching, reindex (see the README).
+
+  # OpenSearch 1.3, Nuxeo's fully tested target
+  opensearch:
+    image: opensearchproject/opensearch:${OPENSEARCH_VERSION:-1.3.20}
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+    volumes:
+      - nuxeo-opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' || exit 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:${OPENSEARCH_VERSION:-1.3.20}
+    environment:
+      OPENSEARCH_HOSTS: '["http://nuxeo-search:9200"]'
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
+
+  # Elasticsearch 8, which Nuxeo's OpenSearch 1.x client also works with (the same version as Oak's stacks)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTICSEARCH_VERSION:-8.19.23}
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      xpack.security.enrollment.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    volumes:
+      - nuxeo-elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' || exit 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+
+  # Kibana
+  elasticsearch-dashboards:
+    image: docker.elastic.co/kibana/kibana:${ELASTICSEARCH_VERSION:-8.19.23}
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://nuxeo-search:9200"]'
+
+  # Nuxeo's Kafka: single broker in KRaft mode (no ZooKeeper), two listeners: PLAINTEXT (nuxeo-kafka:29092) for Nuxeo
+  # and Kafka UI in the Compose network, PLAINTEXT_HOST (localhost:<host port>, advertised by each stack) for consumers
+  # on the host, such as Flexible GraphRAG. The data volume is mounted on the image's own data directory, which belongs
+  # to the image's user (uid 1000): a volume on a path the image doesn't have would belong to root, and the broker
+  # couldn't format it.
+  nuxeo-kafka:
+    image: apache/kafka:${KAFKA_VERSION:-3.9.2}
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:29092,CONTROLLER://:29093,PLAINTEXT_HOST://:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:29093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:29092 --list > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 20s
+      retries: 30
+
+  nuxeo-kafka-ui:
+    image: kafbat/kafka-ui:${KAFKA_UI_VERSION:-v1.5.0}
+    environment:
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: nuxeo-kafka:29092

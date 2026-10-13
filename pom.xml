@@ -1,0 +1,236 @@
+<?xml version="1.0"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- nuxeo-parent is just an empty re-export of nuxeo-ecm; nuxeo-ecm is what the local Nuxeo build installs -->
+  <parent>
+    <groupId>org.nuxeo</groupId>
+    <artifactId>nuxeo-ecm</artifactId>
+    <version>2025.22-SNAPSHOT</version>
+    <relativePath />
+  </parent>
+
+  <groupId>org.integratedsemantics.nuxeo.graph</groupId>
+  <artifactId>nuxeo-graph-storage-parent</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+  <name>Nuxeo Graph Storage - Parent</name>
+  <description>Prototype DBS storage backends storing Nuxeo documents in property graph databases (Neo4j, later ArcadeDB)</description>
+
+  <modules>
+    <module>nuxeo-core-storage-graph</module>
+    <module>nuxeo-core-storage-neo4j</module>
+    <module>nuxeo-core-storage-arcadedb</module>
+  </modules>
+
+  <profiles>
+    <profile>
+      <!-- runs Nuxeo's own core repository tests against a graph backend: mvn install -Pcore-tests -->
+      <id>core-tests</id>
+      <modules>
+        <module>nuxeo-graph-storage-core-tests</module>
+      </modules>
+    </profile>
+  </profiles>
+
+  <properties>
+    <!-- Neo4j server version of the tests' Docker image (neo4j:${neo4j.version}); the Docker Compose's Neo4j is
+         NEO4J_VERSION in docker/.env: change both together -->
+    <neo4j.version>2026.09.0</neo4j.version>
+    <neo4j-driver.version>6.3.0</neo4j-driver.version>
+    <neo4j-cypher-dsl.version>2025.2.7</neo4j-cypher-dsl.version>
+    <testcontainers.version>2.0.5</testcontainers.version>
+    <!-- ArcadeDB client version; also the default Docker image tag used by the tests (nuxeo.test.arcadedb.image) -->
+    <arcadedb.version>26.10.1</arcadedb.version>
+    <!-- libraries of the in-process ArcadeDB server (tests only), same versions as arcadedb-engine -->
+    <arcadedb.antlr4.version>4.13.2</arcadedb.antlr4.version>
+    <arcadedb.graalvm.version>25.0.2</arcadedb.graalvm.version>
+    <arcadedb.jts.version>1.20.0</arcadedb.jts.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.integratedsemantics.nuxeo.graph</groupId>
+        <artifactId>nuxeo-core-storage-graph</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.integratedsemantics.nuxeo.graph</groupId>
+        <artifactId>nuxeo-core-storage-neo4j</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.integratedsemantics.nuxeo.graph</groupId>
+        <artifactId>nuxeo-core-storage-neo4j</artifactId>
+        <version>${project.version}</version>
+        <type>test-jar</type>
+      </dependency>
+      <dependency>
+        <groupId>org.integratedsemantics.nuxeo.graph</groupId>
+        <artifactId>nuxeo-core-storage-arcadedb</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.integratedsemantics.nuxeo.graph</groupId>
+        <artifactId>nuxeo-core-storage-arcadedb</artifactId>
+        <version>${project.version}</version>
+        <type>test-jar</type>
+      </dependency>
+      <dependency>
+        <groupId>com.arcadedb</groupId>
+        <artifactId>arcadedb-network</artifactId>
+        <version>${arcadedb.version}</version>
+        <exclusions>
+          <!-- the remote client only needs the engine's core classes: drop the heavy engine extras -->
+          <exclusion>
+            <groupId>org.graalvm.polyglot</groupId>
+            <artifactId>*</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.graalvm.js</groupId>
+            <artifactId>*</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.graalvm.truffle</groupId>
+            <artifactId>*</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.graalvm.sdk</groupId>
+            <artifactId>*</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>*</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>io.github.jbellis</groupId>
+            <artifactId>*</artifactId>
+          </exclusion>
+          <exclusion>
+            <!-- only needed by the ArcadeDB server, not by the remote client -->
+            <groupId>org.antlr</groupId>
+            <artifactId>*</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.locationtech.jts</groupId>
+            <artifactId>*</artifactId>
+          </exclusion>
+          <exclusion>
+            <!-- conflicts with Nuxeo's log4j SLF4J binding -->
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-jdk14</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>com.arcadedb</groupId>
+        <artifactId>arcadedb-server</artifactId>
+        <version>${arcadedb.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-jdk14</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.neo4j.driver</groupId>
+        <artifactId>neo4j-java-driver</artifactId>
+        <version>${neo4j-driver.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.neo4j</groupId>
+        <artifactId>neo4j-cypher-dsl</artifactId>
+        <version>${neo4j-cypher-dsl.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>testcontainers</artifactId>
+        <version>${testcontainers.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>testcontainers-neo4j</artifactId>
+        <version>${testcontainers.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <!-- Nuxeo artifacts come from the local build (~/.m2); disable the inherited Nuxeo repository so that
+       third-party artifacts are fetched from Maven Central (packages.nuxeo.com is not reachable from here) -->
+  <repositories>
+    <repository>
+      <id>maven-public-lts</id>
+      <url>https://packages.nuxeo.com/repository/maven-public-lts/</url>
+      <releases>
+        <enabled>false</enabled>
+      </releases>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+    </repository>
+  </repositories>
+  <pluginRepositories>
+    <pluginRepository>
+      <id>maven-public-lts</id>
+      <url>https://packages.nuxeo.com/repository/maven-public-lts/</url>
+      <releases>
+        <enabled>false</enabled>
+      </releases>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+    </pluginRepository>
+  </pluginRepositories>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>com.diffplug.spotless</groupId>
+          <artifactId>spotless-maven-plugin</artifactId>
+          <configuration>
+            <!-- out-of-tree repository: no origin/2025 to ratchet from -->
+            <ratchetFrom>NONE</ratchetFrom>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <configuration>
+            <!-- each test class's output (logs, the stack traces of expected exceptions) goes to
+                 target/surefire-reports/<class>-output.txt, not to the console -->
+            <redirectTestOutputToFile>true</redirectTestOutputToFile>
+            <systemPropertyVariables>
+              <!-- java.util.logging (the Neo4j driver logs through it) at WARNING: src/test/resources/logging.properties -->
+              <java.util.logging.config.file>${project.build.testOutputDirectory}/logging.properties</java.util.logging.config.file>
+            </systemPropertyVariables>
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>enforce-dependencies</id>
+            <configuration>
+              <rules>
+                <requireReleaseDeps>
+                  <!-- Nuxeo's rule allows snapshots of org.nuxeo* only: also allow this project's own modules -->
+                  <excludes combine.children="append">
+                    <exclude>org.integratedsemantics*</exclude>
+                  </excludes>
+                </requireReleaseDeps>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

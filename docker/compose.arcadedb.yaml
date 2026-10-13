@@ -1,0 +1,113 @@
+# Nuxeo LTS 2025 with the Web UI, its default repository (documents and folders) in ArcadeDB, the rest (users, groups,
+# directories, audit) in PostgreSQL, search and fulltext in OpenSearch (or Elasticsearch), Nuxeo Stream (with the audit
+# stream for change sync) on Kafka:
+#
+#   docker compose -f docker/compose.arcadedb.yaml up --build   # Nuxeo on :8084, ArcadeDB Studio on :2491
+#
+# Web UI: http://localhost:8084/nuxeo/ui (Administrator / Administrator). The first build compiles Nuxeo and the Web UI
+# from source: long. The versions, passwords and ports are in docker/.env. The Neo4j stack (compose.neo4j.yaml) can run
+# at the same time: open one with localhost and the other with 127.0.0.1 (the two Nuxeo would share their session
+# cookie on localhost).
+#
+# The services: ArcadeDB, and Nuxeo with its own PostgreSQL ("db"), search engine ("search": OpenSearch with OpenSearch
+# Dashboards, or Elasticsearch with Kibana: NUXEO_ARCADEDB_SEARCH_ENGINE in docker/.env) and Kafka (with Kafka UI). The
+# Nuxeo services are defined in nuxeo-base.yaml; this file adds the ArcadeDB settings, the host ports and the volumes.
+# Stop with "stop" (or "down"): the volumes are kept. "down -v" deletes them: all the content.
+#
+# Nuxeo's configuration: config/conf.d, mounted into the container and appended to nuxeo.conf when the container is
+# created. After editing it: docker compose -f docker/compose.arcadedb.yaml up -d --force-recreate nuxeo
+# Custom content models: config/models, built into the image.
+
+name: nuxeo-graph-arcadedb
+
+services:
+
+  arcadedb:
+    image: arcadedata/arcadedb:${ARCADEDB_VERSION:-26.10.1}
+    environment:
+      # the password of the server's admin user, root
+      JAVA_OPTS: >-
+        -Darcadedb.server.rootPassword=${ARCADEDB_PASSWORD:-playwithdata}
+        -Darcadedb.server.defaultDatabases=nuxeo[root]
+        -Darcadedb.server.httpSessionExpireTimeout=300
+    ports:
+      - "${ARCADEDB_HTTP_PORT:-2491}:2480"
+    volumes:
+      - arcadedb-databases:/home/arcadedb/databases
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:2480/api/v1/ready || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  nuxeo-db:
+    extends: { file: nuxeo-base.yaml, service: nuxeo-db }
+    volumes:
+      - nuxeo-db-data:/var/lib/postgresql/data
+
+  # the search engine, opensearch or elasticsearch (NUXEO_ARCADEDB_SEARCH_ENGINE in docker/.env)
+  nuxeo-search:
+    extends: { file: nuxeo-base.yaml, service: "${NUXEO_ARCADEDB_SEARCH_ENGINE:-opensearch}" }
+    ports:
+      - "${NUXEO_ARCADEDB_SEARCH_PORT:-9205}:9200"
+
+  # OpenSearch Dashboards, or Kibana
+  nuxeo-search-dashboards:
+    extends: { file: nuxeo-base.yaml, service: "${NUXEO_ARCADEDB_SEARCH_ENGINE:-opensearch}-dashboards" }
+    depends_on:
+      - nuxeo-search
+    ports:
+      - "${NUXEO_ARCADEDB_SEARCH_DASHBOARDS_PORT:-5606}:5601"
+
+  nuxeo-kafka:
+    extends: { file: nuxeo-base.yaml, service: nuxeo-kafka }
+    environment:
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://nuxeo-kafka:29092,PLAINTEXT_HOST://localhost:${NUXEO_ARCADEDB_KAFKA_PORT:-9093}
+    ports:
+      - "${NUXEO_ARCADEDB_KAFKA_PORT:-9093}:9092"
+    volumes:
+      - nuxeo-kafka-data:/var/lib/kafka/data
+
+  nuxeo-kafka-ui:
+    extends: { file: nuxeo-base.yaml, service: nuxeo-kafka-ui }
+    depends_on:
+      - nuxeo-kafka
+    environment:
+      KAFKA_CLUSTERS_0_NAME: nuxeo-arcadedb
+    ports:
+      - "${NUXEO_ARCADEDB_KAFKA_UI_PORT:-8093}:8080"
+
+  nuxeo:
+    extends: { file: nuxeo-base.yaml, service: nuxeo }
+    depends_on:
+      arcadedb:
+        condition: service_healthy
+      nuxeo-db:
+        condition: service_healthy
+      nuxeo-search:
+        condition: service_healthy
+      nuxeo-kafka:
+        condition: service_healthy
+    environment:
+      NUXEO_TEMPLATES: graph-arcadedb,sql-audit,opensearch1-search-client
+      ARCADEDB_HOST: arcadedb
+      ARCADEDB_DATABASE: nuxeo
+      ARCADEDB_USERNAME: ${ARCADEDB_USERNAME:-root}
+      ARCADEDB_PASSWORD: ${ARCADEDB_PASSWORD:-playwithdata}
+    ports:
+      - "${NUXEO_ARCADEDB_PORT:-8084}:8080"
+    volumes:
+      - nuxeo-data:/var/lib/nuxeo
+      - nuxeo-logs:/var/log/nuxeo
+
+# Seven volumes, six in use (Docker names them nuxeo-graph-arcadedb_<name>). Keep or delete them together: a document's metadata is
+# in ArcadeDB, its file content in Nuxeo's data volume, its history (audit) in Nuxeo's PostgreSQL, its search index in
+# the search engine, and pending work in Kafka.
+volumes:
+  arcadedb-databases: # ArcadeDB's graph data: the documents and folders (database nuxeo)
+  nuxeo-db-data:      # Nuxeo's PostgreSQL data (not ArcadeDB's): users and groups, directories, audit, key/value
+  nuxeo-opensearch-data:     # Nuxeo's search index in OpenSearch (rebuilt from the repository if lost)
+  nuxeo-elasticsearch-data:  # Nuxeo's search index in Elasticsearch, when it is the stack's search engine
+  nuxeo-kafka-data:   # Nuxeo's Kafka: Nuxeo Stream (bulk commands, works, the audit topic nuxeo-audit-audit)
+  nuxeo-data:         # Nuxeo's data directory: the files' content (binaries/), transient files
+  nuxeo-logs:         # Nuxeo's logs: server.log, nuxeo-error.log, console.log, gc.log, stderr.log

@@ -1,0 +1,6 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Nuxeo Core Storage Neo4j
+Bundle-SymbolicName: org.integratedsemantics.nuxeo.graph.neo4j;singleton:=true
+Bundle-Vendor: Steve Reiner
+Nuxeo-Component: OSGI-INF/neo4j-repository-service.xml

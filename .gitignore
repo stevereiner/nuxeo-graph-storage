@@ -1,0 +1,14 @@
+target/
+*.iml
+.idea/
+.vscode/
+.classpath
+.project
+.settings/
+.factorypath
+# ArcadeDB client log files
+*/log/
+# Notes not published with the project
+planning/
+# Machine-specific Maven JVM options (for example a Windows trust store behind TLS inspection)
+.mvn/jvm.config

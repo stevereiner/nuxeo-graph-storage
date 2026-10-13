@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<component name="org.integratedsemantics.nuxeo.graph.arcadedb.ArcadeDBRepositoryService" version="1.0.0">
+
+  <require>org.nuxeo.ecm.core.storage.dbs.DBSRepositoryService</require>
+
+  <documentation>
+    Manages ArcadeDB repositories. The ArcadeDB server is configured with the nuxeo.conf properties nuxeo.arcadedb.host, nuxeo.arcadedb.port,
+    nuxeo.arcadedb.database, nuxeo.arcadedb.username and nuxeo.arcadedb.password (the database must be dedicated to the repository).
+  </documentation>
+
+  <implementation class="org.integratedsemantics.nuxeo.graph.arcadedb.ArcadeDBRepositoryService" />
+
+  <service>
+    <provide interface="org.integratedsemantics.nuxeo.graph.arcadedb.ArcadeDBRepositoryService" />
+  </service>
+
+  <extension-point name="repository">
+    <documentation>
+      Extension point to register ArcadeDB repositories. Example:
+      <code>
+        <repository name="default" label="ArcadeDB Repository" isDefault="true">
+          <fulltext disabled="false" />
+        </repository>
+      </code>
+    </documentation>
+    <object class="org.integratedsemantics.nuxeo.graph.arcadedb.ArcadeDBRepositoryDescriptor" />
+  </extension-point>
+
+</component>

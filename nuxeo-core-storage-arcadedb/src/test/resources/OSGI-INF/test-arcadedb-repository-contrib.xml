@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<component name="org.integratedsemantics.nuxeo.graph.arcadedb.test.repository">
+
+  <!-- the "test" repository first registered by CoreFeature in mem mode, which we take over -->
+  <require>org.nuxeo.ecm.core.test.repository</require>
+
+  <extension target="org.integratedsemantics.nuxeo.graph.arcadedb.ArcadeDBRepositoryService" point="repository">
+    <repository name="test" label="ArcadeDB Repository" />
+  </extension>
+
+</component>

@@ -1,0 +1,4 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Nuxeo Core Storage Graph Common
+Bundle-SymbolicName: org.integratedsemantics.nuxeo.graph;singleton:=true

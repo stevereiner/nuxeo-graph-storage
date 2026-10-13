@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Logging of the tests. Comes first on the test classpath, so it replaces the log4j2-test.xml of Nuxeo's test jars
+     (nuxeo-core-event's turns on TRACE/DEBUG for the work queues). Warnings and errors, this project's own INFO;
+     stack traces cut to their first 3 lines, as many tests provoke exceptions on purpose (%xEx for full traces). -->
+<Configuration>
+  <Appenders>
+    <Console name="CONSOLE" target="SYSTEM_OUT">
+      <PatternLayout pattern="%d{HH:mm:ss.SSS} %-5p [%t] %c{1}: %m%n%xEx{3}" />
+    </Console>
+  </Appenders>
+  <Loggers>
+    <Logger name="org.integratedsemantics.nuxeo.graph" level="INFO" />
+    <Root level="WARN">
+      <AppenderRef ref="CONSOLE" />
+    </Root>
+  </Loggers>
+</Configuration>

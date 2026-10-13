@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<!-- Replaces the SQL (VCS) default repository of the postgresql template: the same component name and file. -->
+<component name="default-repository-config">
+
+  <extension target="org.integratedsemantics.nuxeo.graph.neo4j.Neo4jRepositoryService" point="repository">
+    <repository name="default" label="label.default.repository" />
+  </extension>
+
+</component>

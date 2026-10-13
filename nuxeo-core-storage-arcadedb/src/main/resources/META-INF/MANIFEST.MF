@@ -1,0 +1,5 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Nuxeo Core Storage ArcadeDB
+Bundle-SymbolicName: org.integratedsemantics.nuxeo.graph.arcadedb;singleton:=true
+Nuxeo-Component: OSGI-INF/arcadedb-repository-service.xml
